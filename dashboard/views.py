@@ -70,12 +70,12 @@ class CampaignsOverTimeView(APIView):
     def get(self, request):
         today = timezone.now().date()
         start_month = date(today.year, today.month, 1)
-        six_months_ago = start_month
-        for _ in range(5):
-            six_months_ago = (six_months_ago - timedelta(days=1)).replace(day=1)
+        a_year_ago = start_month
+        for _ in range(11):
+            a_year_ago = (a_year_ago - timedelta(days=1)).replace(day=1)
 
         data = (
-            Campaign.objects.filter(created_at__date__gte=six_months_ago)
+            Campaign.objects.filter(created_at__date__gte=a_year_ago)
             .annotate(month=TruncMonth('created_at'))
             .values('month')
             .annotate(count=Count('id'))
