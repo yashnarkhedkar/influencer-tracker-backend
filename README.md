@@ -11,7 +11,10 @@ Backend API for managing influencer marketing campaigns, influencers, and dashbo
 ## Tech Stack
 - Python 3, Django 4.2, Django REST Framework
 - PostgreSQL or SQLite (via `DATABASE_URL`)
-- OpenAI API and Google API client
+- OpenAI API (campaign briefs + title/hashtag suggestions)
+- YouTube Data API v3 (channel stats refresh)
+- Gunicorn (production server)
+- Railway (deployment)
 
 ## Project Structure
 - `config/`: Django project config
@@ -110,11 +113,43 @@ Note: `ai-insights` currently returns a placeholder value (`"Dummy Insights"`) b
 - `POST /ai/suggest-titles-hashtags/`
   - Body: `description`, `platform`
 
+## Backend Details
+- Models: `Campaign`, `Influencer`, `CampaignInfluencer` with UUID primary keys
+- Campaign status workflow: `draft`, `active`, `paused`, `completed`
+- Platform support: `youtube`, `instagram`, `tiktok`
+- YouTube stats refresh endpoint updates subscribers, views, video count, and thumbnail
+- Dashboard analytics: summary, status breakdown, budget overview, monthly trends, platform mix
+- AI insights endpoint includes a simple request cache to avoid repeated OpenAI calls
+
+## Best Practices Included
+- Environment-based configuration via `.env` and `DATABASE_URL`
+- Separation of concerns with dedicated apps (`campaigns`, `dashboard`, `ai_tools`, `core`)
+- Serializer-driven validation and consistent API payloads
+- Query filtering and ordering at the viewset level
+- Defensive error handling for external API calls (OpenAI / YouTube)
+- Light caching for AI insights to reduce cost and latency
+
+## Deployment
+This backend is deployed on Railway.
+
+Frontend should use the following base URL:
+```
+NEXT_PUBLIC_API_BASE_URL=https://web-production-f4e72.up.railway.app/api/v1
+```
+
 ## Production
 A sample `Procfile` is included for Gunicorn:
 ```bash
 web: gunicorn config.wsgi --log-file -
 ```
+
+## Future Enhancements
+- Authentication and role-based access control (JWT / admin roles)
+- Advanced filtering and full-text search across campaigns and influencers
+- Background jobs for stats refresh and AI tasks (Celery / RQ)
+- Audit logs for campaign and influencer changes
+- File uploads for briefs, contracts, and creative assets
+- Webhooks and notifications for campaign lifecycle events
 
 ## License
 Specify your license here.
