@@ -1,4 +1,7 @@
 from datetime import date, timedelta
+import hashlib
+import json
+from pathlib import Path
 
 from django.db.models import Avg, Count, F, Sum
 from django.db.models.functions import TruncMonth
@@ -8,6 +11,43 @@ from rest_framework.views import APIView
 
 from campaigns.models import Campaign, Influencer
 from dashboard.ai import generate_insights
+
+
+_REQUEST_CACHE_FILENAME = "ai_request_cache.json"
+_REQUEST_CACHE_LIMIT = 10
+
+
+def _request_cache_path() -> Path:
+    return Path(__file__).resolve().parents[1] / _REQUEST_CACHE_FILENAME
+
+
+def _load_request_cache() -> dict:
+    path = _request_cache_path()
+    if not path.exists():
+        return {"order": [], "items": {}}
+    try:
+        with path.open("r", encoding="utf-8") as handle:
+            data = json.load(handle)
+        if (
+            isinstance(data, dict)
+            and isinstance(data.get("order"), list)
+            and isinstance(data.get("items"), dict)
+        ):
+            return data
+    except Exception:
+        return {"order": [], "items": {}}
+    return {"order": [], "items": {}}
+
+
+def _save_request_cache(cache: dict) -> None:
+    path = _request_cache_path()
+    with path.open("w", encoding="utf-8") as handle:
+        json.dump(cache, handle, indent=2)
+
+
+def _request_cache_key(payload: dict) -> str:
+    serialized = json.dumps(payload, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(serialized.encode("utf-8")).hexdigest()
 
 
 def _summary_payload():
@@ -115,5 +155,23 @@ class AIInsightsView(APIView):
             'campaigns_by_status': campaigns_by_status,
             'platform_breakdown': platform_breakdown,
         }
+        cache = _load_request_cache()
+        cache_key = _request_cache_key(data)
+        cached_item = cache.get("items", {}).get(cache_key)
+        if isinstance(cached_item, str) and cached_item:
+            return Response({'insights': cached_item})
+
         insights_text = generate_insights(data)
+        if insights_text:
+            order = cache.get("order", [])
+            items = cache.get("items", {})
+            if cache_key not in items:
+                order.append(cache_key)
+            items[cache_key] = insights_text
+            while len(order) > _REQUEST_CACHE_LIMIT:
+                oldest = order.pop(0)
+                items.pop(oldest, None)
+            cache["order"] = order
+            cache["items"] = items
+            _save_request_cache(cache)
         return Response({'insights': insights_text})
